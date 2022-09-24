@@ -1,6 +1,7 @@
 module tabletool;
 
-import std.algorithm : max, map;
+import std.algorithm : canFind, max, map;
+import std.array : array;
 import std.conv : to;
 import std.format : format;
 import std.range : join, repeat, zip;
@@ -229,6 +230,73 @@ unittest
 
     tabulate(testdata, Config(Justify.Center, Style.Simple, true))
         .should.be(import("center_simple_header.txt"));
+}
+
+string tabulate(TKey, TValue)(in TValue[TKey][] data, in Config config = Config())
+{
+    string[][] stringData;
+    string[] stringHeader;
+    foreach (line; data)
+    {
+        foreach (key, _; line)
+        {
+            if (!stringHeader.canFind(key.to!string))
+            {
+                stringHeader ~= key.to!string;
+            }
+        }
+    }
+
+    foreach (line; data)
+    {
+        string[] lineData;
+        foreach (h; stringHeader)
+        {
+            if (h in line)
+            {
+                lineData ~= line[h].to!string;
+            }
+            else
+            {
+                lineData ~= "";
+            }
+        }
+        stringData ~= lineData;
+    }
+    return tabulate(stringData, stringHeader, config);
+}
+
+@("Check if the tabulate works for associated array.")
+unittest
+{
+    import dshould;
+
+    const testdata = [
+        [
+            "マスコットキャラクタ": "D-man",
+            "about": "Programming Language"
+        ],
+        [
+            "マスコットキャラクタ": "D言語くん",
+            "about": "プログラミング言語"
+        ],
+    ];
+    tabulate(testdata, Config(Justify.Center, Style.Simple, true))
+        .should.be(import("center_simple_header.txt"));
+}
+
+@("Check if the tabulate works for associated array which has lacked data.")
+unittest
+{
+    import dshould;
+
+    const testdata = [
+        ["foo": 0.1, "bar": 0.2],
+        ["foo": 0.123, "baz": 0.3],
+    ];
+
+    tabulate(testdata, Config(Justify.Center, Style.Simple, true))
+        .should.be(import("lacked_data_center_simple_header.txt"));
 }
 
 private string eacenter(string text, size_t width, char fillChar = ' ')
