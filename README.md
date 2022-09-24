@@ -49,6 +49,7 @@ writeln(tabulate(structData, Config(Justify.Center, Style.Markdown, true)));
 - Compatible with east-asian characters (Thank to [east_asian_width](https://code.dlang.org/packages/east_asian_width))
 - Generate a table from 2-D array of any element which can be converted to string
 - Generate a table from 1-D array of a struct (Can override display name by UDA `@DisplayName("<name>")`)
+- Generate a table from 1-D array of an associated array whose key and value can be converted to string
 - Select styles (simple, markdown and grid)
 - Select text alignment (left, center and right)
 - Turn on/off header
