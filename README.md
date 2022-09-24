@@ -14,7 +14,7 @@ const data = [
     ["D言語くん", "プログラミング言語"],
 ];
 const header = ["マスコットキャラクタ", "about"];
-writeln(tabulate(arrayData, header));
+writeln(tabulate(data, header));
 /* Output:
 マスコットキャラクタ        about        
 -------------------- --------------------
