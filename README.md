@@ -1,6 +1,7 @@
 # tabletool
 
 [![test](https://github.com/nonanonno/tabletool/actions/workflows/test.yml/badge.svg)](https://github.com/nonanonno/tabletool/actions/workflows/test.yml)
+[![DUB](https://img.shields.io/dub/v/tabletool)](https://code.dlang.org/packages/tabletool)
 
 A table generator library inspired by Python's tabulate  compatible with east-asian character.
 
