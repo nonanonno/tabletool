@@ -1,5 +1,5 @@
 name "tabletool"
-description "A table generator library inspired by Python's tabulate"
+description "A table generator library inspired by Python's tabulate compatible with east-asian character"
 authors "nonanonno"
 copyright "Copyright © 2022, nonanonno"
 license "MIT"
