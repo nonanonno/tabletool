@@ -1,0 +1,15 @@
+.dub
+docs.json
+__dummy.html
+docs/
+/dub.selections.json
+/tabletool
+libtabletool.a
+tabletool.so
+tabletool.dylib
+tabletool.dll
+tabletool.lib
+*.exe
+*.o
+*.obj
+*.lst
