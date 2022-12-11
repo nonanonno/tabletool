@@ -16,10 +16,10 @@ const data = [
 const header = ["マスコットキャラクタ", "about"];
 writeln(tabulate(data, header));
 /* Output:
-マスコットキャラクタ        about        
--------------------- --------------------
-       D-man         Programming Language
-     D言語くん        プログラミング言語 
+ マスコットキャラクタ          about         
+---------------------- ----------------------
+        D-man           Programming Language 
+      D言語くん          プログラミング言語  
 */
 
 // Also works with struct
@@ -28,6 +28,7 @@ struct Data {
     string name;
     string about;
 }
+
 const structData = [
     Data("D-man", "Programming Language"),
     Data("D言語くん", "プログラミング言語"),
@@ -35,12 +36,15 @@ const structData = [
 writeln(tabulate(structData));
 /* Output: ditto */
 
-writeln(tabulate(structData, Config(Justify.Center, Style.Markdown, true)));
+writeln(tabulate(structData, Config(Style.grid, Align.left, true)));
 /* Output:
-|マスコットキャラクタ|       about        |
-|--------------------|--------------------|
-|       D-man        |Programming Language|
-|     D言語くん      | プログラミング言語 |
+┌──────────────────────┬──────────────────────┐
+│ マスコットキャラクタ │ about                │
+├──────────────────────┼──────────────────────┤
+│ D-man                │ Programming Language │
+├──────────────────────┼──────────────────────┤
+│ D言語くん            │ プログラミング言語   │
+└──────────────────────┴──────────────────────┘
 */
 ```
 
@@ -50,6 +54,5 @@ writeln(tabulate(structData, Config(Justify.Center, Style.Markdown, true)));
 - Generate a table from 2-D array of any element which can be converted to string
 - Generate a table from 1-D array of a struct (Can override display name by UDA `@DisplayName("<name>")`)
 - Generate a table from 1-D array of an associated array whose key and value can be converted to string
-- Select styles (simple, markdown and grid)
-- Select text alignment (left, center and right)
+- Configure table appearance (style, alginment
 - Turn on/off header

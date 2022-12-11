@@ -4,13 +4,3 @@ authors "nonanonno"
 copyright "Copyright © 2022, nonanonno"
 license "MIT"
 dependency "east_asian_width" version="~>1.1.0"
-configuration "library" {
-    targetType "library"
-}
-configuration "unittest" {
-    dependency "dshould" version="~>1.7.0"
-    dependency "silly" version="~>1.1.1"
-    targetType "library"
-    stringImportPaths "resources/test"
-    targetPath ".dub/unittest"
-}
