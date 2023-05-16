@@ -13,3 +13,4 @@ tabletool.lib
 *.o
 *.obj
 *.lst
+/tabletool-test-library
