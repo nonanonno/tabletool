@@ -1,0 +1,6 @@
+name "example"
+description "Example"
+authors "nonanonno"
+copyright "Copyright © 2023, nonanonno"
+license "MIT"
+dependency "tabletool" path=".." version="*"

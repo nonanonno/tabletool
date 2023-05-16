@@ -8,7 +8,7 @@ import std.range : join, repeat, zip;
 import std.traits : getUDAs, hasUDA;
 import std.utf;
 
-import eastasianwidth : displayWidth;
+import eastasianwidth : eastasianDisplayWidth = displayWidth;
 
 /// Option to specify the table style.
 enum Style
@@ -78,7 +78,7 @@ string tabulate(T)(in T[][] data, in string[] headers, in Config config = Config
     tableConfig.showHeader = config.showHeader && headers.length > 0;
 
     auto columnConfigs = zip(widthes, actualHeaders).map!(tup => ColumnConfig(tup[0], tup[1], config
-            .align_)).array();
+        .align_)).array();
 
     return tabulate(data, tableConfig, columnConfigs);
 }
@@ -353,6 +353,46 @@ unittest
     assert(tabulate(testdata, tableConfig, columnConfigs) == reference);
 }
 
+/// Unescape bash color sequence
+private string unescape(string text)
+{
+    import std.regex;
+
+    return replaceAll(text, regex(r"\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|k]"), "");
+}
+
+///
+unittest
+{
+    foreach (text; ["hello", "こんにちは"])
+    {
+        auto normal = text;
+        auto red = "\033[31m" ~ text;
+        auto greenBlueAndReset = "\033[32m\033[44m" ~ text ~ "\033[0m";
+        auto combination = red ~ greenBlueAndReset ~ normal;
+
+        assert(normal == unescape(normal));
+        assert(normal == unescape(red));
+        assert(normal == unescape(greenBlueAndReset));
+        assert(normal ~ normal ~ normal == unescape(combination));
+    }
+}
+
+private size_t displayWidth(string text)
+{
+    const tmp = unescape(text);
+    return eastasianDisplayWidth(tmp);
+}
+
+///
+unittest
+{
+    assert(displayWidth("hello") == 5);
+    assert(displayWidth("こんにちは") == 10);
+    assert(displayWidth("helloこんにちは") == 15);
+    assert(displayWidth("\033[31m" ~ "helloこんにちは" ~ "\033[0m") == 15);
+}
+
 private string alignment(string text, Align align_, size_t width)
 {
     static immutable dotTable = ["", ".", ".."];
@@ -488,7 +528,7 @@ private string makeItemLine(T)(
 {
     return ruler.left()
         ~ zip(line, aligns, widthes)
-        .map!(tup => leftPadding ~ alignment(tup[0].to!string, tup[1], tup[2]) ~ rightPadding)
+            .map!(tup => leftPadding ~ alignment(tup[0].to!string, tup[1], tup[2]) ~ rightPadding)
         .join(ruler.vertical())
         ~ ruler.right();
 }
