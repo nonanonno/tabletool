@@ -1,7 +1,7 @@
 module tabletool;
 
 import std.algorithm : canFind, max, min, map;
-import std.array : array;
+import std.array : array, split;
 import std.conv : to;
 import std.format : format;
 import std.range : join, repeat, zip;
@@ -47,6 +47,7 @@ struct TableConfig
     string leftPadding = " ";
     string rightPadding = " ";
     bool showHeader = true;
+    size_t maxHeight = 0;
 }
 
 /// Detailed configurations to set each column appearance.
@@ -71,11 +72,12 @@ string tabulate(T)(in T[][] data, in string[] headers, in Config config = Config
     assert(headers.length == 0 || data[0].length == headers.length);
 
     auto actualHeaders = headers.length > 0 ? headers : "".repeat(data[0].length).array();
-    auto widthes = calcWidthes(data, actualHeaders);
 
     auto tableConfig = TableConfig();
     tableConfig.style = config.style;
     tableConfig.showHeader = config.showHeader && headers.length > 0;
+
+    auto widthes = calcWidthes(data, actualHeaders, chooseLineBreak(config.style));
 
     auto columnConfigs = zip(widthes, actualHeaders).map!(tup => ColumnConfig(tup[0], tup[1], config
         .align_)).array();
@@ -97,6 +99,33 @@ unittest
         "        D-man           Programming Language \n" ~
         "      D言語くん          プログラミング言語  ";
     assert(tabulate(testdata, headers, Config(Style.simple, Align.center, true)) == reference);
+}
+
+///
+unittest
+{
+    const testdata = [
+        ["D-man", "Programming\nLanguage"],
+        ["D言語\nくん", "プログラミング言語"],
+    ];
+    const headers = ["マスコットキャラクタ", "about"];
+    import std;
+
+    assert(tabulate(testdata, headers, Config(Style.simple, Align.center, true)) ==
+            " マスコットキャラクタ         about        \n" ~
+            "---------------------- --------------------\n" ~
+            "        D-man              Programming     \n" ~
+            "                             Language      \n" ~
+            "        D言語           プログラミング言語 \n" ~
+            "         くん                              "
+    );
+
+    assert(tabulate(testdata, headers, Config(Style.markdown, Align.center, true)) ==
+            "| マスコットキャラクタ |          about          |\n" ~
+            "|----------------------|-------------------------|\n" ~
+            "|        D-man         | Programming<br>Language |\n" ~
+            "|    D言語<br>くん     |   プログラミング言語    |"
+    );
 }
 
 /**
@@ -279,10 +308,11 @@ string tabulate(T)(in T[][] data, in TableConfig tableConfig, in ColumnConfig[] 
     assert(data[0].length == columnConfigs.length);
 
     const ruler = Ruler(tableConfig.style);
+    const lineBreak = chooseLineBreak(tableConfig.style);
     const widthes = columnConfigs.map!(c => c.width).array();
     const aligns = columnConfigs.map!(c => c.align_).array();
     const widthForRuler = widthes.map!(w => w + displayWidth(
-            tableConfig.leftPadding) + displayWidth(tableConfig.rightPadding)).array();
+            tableConfig.leftPadding, "") + displayWidth(tableConfig.rightPadding, "")).array();
 
     string[] lines;
 
@@ -294,13 +324,15 @@ string tabulate(T)(in T[][] data, in TableConfig tableConfig, in ColumnConfig[] 
     if (tableConfig.showHeader)
     {
         const headers = columnConfigs.map!(c => c.header).array();
-        lines ~= makeItemLine(
+        lines ~= makeRow(
             headers,
             widthes,
             aligns,
             ruler,
             tableConfig.leftPadding,
-            tableConfig.rightPadding
+            tableConfig.rightPadding,
+            lineBreak,
+            tableConfig.maxHeight,
         );
         if (auto sep = ruler.headerItemSeperator(widthForRuler))
         {
@@ -309,13 +341,15 @@ string tabulate(T)(in T[][] data, in TableConfig tableConfig, in ColumnConfig[] 
     }
     foreach (i, line; data)
     {
-        lines ~= makeItemLine(
+        lines ~= makeRow(
             line,
             widthes,
             aligns,
             ruler,
             tableConfig.leftPadding,
             tableConfig.rightPadding,
+            lineBreak,
+            tableConfig.maxHeight,
         );
         if ((i + 1) != data.length)
         {
@@ -353,6 +387,41 @@ unittest
     assert(tabulate(testdata, tableConfig, columnConfigs) == reference);
 }
 
+///
+unittest
+{
+    const testdata = [
+        ["D-man", "Programming\nLanguage"],
+        ["D言語\nくん", "プログラミング言語"],
+    ];
+    const columnConfigs = [
+        ColumnConfig(20, "マスコットキャラクタ", Align.center),
+        ColumnConfig(30, "about", Align.center)
+    ];
+
+    assert(tabulate(testdata, TableConfig(Style.simple, " ", " ", true, 0), columnConfigs) ==
+            " マスコットキャラクタ               about              \n" ~
+            "---------------------- --------------------------------\n" ~
+            "        D-man                    Programming           \n" ~
+            "                                   Language            \n" ~
+            "        D言語                 プログラミング言語       \n" ~
+            "         くん                                          "
+    );
+    assert(tabulate(testdata, TableConfig(Style.simple, " ", " ", true, 1), columnConfigs) ==
+            " マスコットキャラクタ               about              \n" ~
+            "---------------------- --------------------------------\n" ~
+            "        D-man                   Programming..          \n" ~
+            "       D言語..                プログラミング言語       "
+    );
+    assert(tabulate(testdata, TableConfig(Style.markdown, " ", " ", true, 0), columnConfigs) ==
+            "| マスコットキャラクタ |             about              |\n" ~
+            "|----------------------|--------------------------------|\n" ~
+            "|        D-man         |    Programming<br>Language     |\n" ~
+            "|    D言語<br>くん     |       プログラミング言語       |"
+    );
+
+}
+
 /// Unescape bash color sequence
 private string unescape(string text)
 {
@@ -378,19 +447,40 @@ unittest
     }
 }
 
-private size_t displayWidth(string text)
+private size_t displayWidth(string text, string lineBreak)
 {
     const tmp = unescape(text);
-    return eastasianDisplayWidth(tmp);
+    if (lineBreak == "\n")
+    {
+        size_t width = 0;
+        foreach (line; tmp.split("\n"))
+        {
+            width = max(width, eastasianDisplayWidth(line));
+        }
+        return width;
+    }
+    else
+    {
+        size_t width = 0;
+        const lines = tmp.split("\n");
+        foreach (line; lines)
+        {
+            width += eastasianDisplayWidth(line);
+        }
+        width += lineBreak.length * (lines.length.to!int - 1);
+        return width;
+    }
 }
 
 ///
 unittest
 {
-    assert(displayWidth("hello") == 5);
-    assert(displayWidth("こんにちは") == 10);
-    assert(displayWidth("helloこんにちは") == 15);
-    assert(displayWidth("\033[31m" ~ "helloこんにちは" ~ "\033[0m") == 15);
+    assert(displayWidth("hello", "") == 5);
+    assert(displayWidth("こんにちは", "") == 10);
+    assert(displayWidth("helloこんにちは", "") == 15);
+    assert(displayWidth("\033[31m" ~ "helloこんにちは" ~ "\033[0m", "") == 15);
+    assert(displayWidth("he\nllo", "  ") == 7);
+    assert(displayWidth("he\nllo", "\n") == 3);
 }
 
 private string alignment(string text, Align align_, size_t width)
@@ -400,7 +490,8 @@ private string alignment(string text, Align align_, size_t width)
     {
         return "";
     }
-    const textWidth = displayWidth(text);
+    // Assume one line
+    const textWidth = displayWidth(text, "");
     if (textWidth > width)
     {
         with (Align) final switch (align_)
@@ -438,11 +529,12 @@ private string cutRight(string text, int width)
     {
         return "";
     }
-    for (int c = count(text).to!int - 1; displayWidth(text) > width; c--)
+    // Assume one line
+    for (int c = count(text).to!int - 1; displayWidth(text, "") > width; c--)
     {
         text = text[0 .. toUTFindex(text, c)];
     }
-    return width > displayWidth(text) ? text ~ "." : text;
+    return width > displayWidth(text, "") ? text ~ "." : text;
 }
 
 private string cutLeft(string text, int width)
@@ -451,11 +543,12 @@ private string cutLeft(string text, int width)
     {
         return "";
     }
-    while (displayWidth(text) > width)
+    // Assume one line
+    while (displayWidth(text, "") > width)
     {
         text = text[toUTFindex(text, 1) .. $];
     }
-    return width > displayWidth(text) ? "." ~ text : text;
+    return width > displayWidth(text, "") ? "." ~ text : text;
 }
 
 private string cutBoth(string text, int width)
@@ -465,7 +558,8 @@ private string cutBoth(string text, int width)
         return "";
     }
     bool cutLeftSide = false;
-    while (displayWidth(text) > width)
+    // Assume one line
+    while (displayWidth(text, "") > width)
     {
         if (cutLeftSide)
         {
@@ -477,7 +571,7 @@ private string cutBoth(string text, int width)
         }
         cutLeftSide = !cutLeftSide;
     }
-    return width > displayWidth(text) ? text ~ "." : text;
+    return width > displayWidth(text, "") ? text ~ "." : text;
 }
 
 unittest
@@ -517,6 +611,79 @@ unittest
     assert(alignment(a, Align.right, 0) == "");
 }
 
+private string makeRow(T)(
+    in T[] row,
+    in size_t[] widthes,
+    in Align[] aligns,
+    in Ruler ruler,
+    in string leftPadding,
+    in string rightPadding,
+    in string lineBreak,
+    in size_t maxHeight,
+)
+{
+    if (lineBreak == "\n")
+    {
+        // Need to make multiline field
+        string[][] lines;
+        lines ~= new string[row.length];
+        foreach (i, elem; row)
+        {
+            foreach (j, l; elem.to!string.split("\n"))
+            {
+                if (maxHeight != 0 && maxHeight == j)
+                {
+                    lines[j - 1][i] ~= "..";
+                    break;
+                }
+                if (lines.length <= j)
+                {
+                    lines ~= new string[row.length];
+                }
+                lines[j][i] = l;
+            }
+        }
+        string[] ret;
+        foreach (line; lines)
+        {
+            ret ~= makeItemLine(line, widthes, aligns, ruler, leftPadding, rightPadding);
+        }
+
+        return ret.join("\n");
+    }
+    else
+    {
+        // 1 line per row
+        string[] line = row.map!(elem => elem.to!string.split("\n").join(lineBreak)).array();
+        return makeItemLine(line, widthes, aligns, ruler, leftPadding, rightPadding);
+    }
+
+}
+
+unittest
+{
+    string[] line = ["a", "ab", "a\nbc", "abcd", "ab\ncde"];
+    size_t[] widthes = [10, 10, 10, 10, 10];
+    Ruler ruler = Ruler(Style.markdown);
+    string leftPadding = "*";
+    string rightPadding = "^^";
+    Align[] aligns = [
+        Align.left, Align.right, Align.center, Align.left, Align.right
+    ];
+
+    assert(makeRow(line, widthes, aligns, ruler, leftPadding, rightPadding, "\n", 0) ==
+            "|*a         ^^|*        ab^^|*    a     ^^|*abcd      ^^|*        ab^^|\n" ~
+            "|*          ^^|*          ^^|*    bc    ^^|*          ^^|*       cde^^|"
+    );
+    assert(makeRow(line, widthes, aligns, ruler, leftPadding, rightPadding, "\n", 1) ==
+            "|*a         ^^|*        ab^^|*   a..    ^^|*abcd      ^^|*      ab..^^|"
+    );
+    assert(makeRow(line, widthes, aligns, ruler, leftPadding, rightPadding, "<br>", 0) ==
+            "|*a         ^^|*        ab^^|* a<br>bc  ^^|*abcd      ^^|* ab<br>cde^^|"
+    );
+
+}
+
 private string makeItemLine(T)(
     in T[] line,
     in size_t[] widthes,
@@ -547,19 +714,19 @@ unittest
             == "|*a     ^^|*   ab^^|*abc ^^|*a..^^|*..^^|");
 }
 
-private size_t[] calcWidthes(T)(in T[][] data, in string[] headers)
+private size_t[] calcWidthes(T)(in T[][] data, in string[] headers, string lineBreak)
 {
     assert(data.length > 0);
     assert(data[0].length == headers.length);
 
-    auto widthes = headers.map!(h => displayWidth(h)).array();
+    auto widthes = headers.map!(h => displayWidth(h, lineBreak)).array();
 
     foreach (line; data)
     {
         assert(line.length == widthes.length);
         foreach (i; 0 .. widthes.length)
         {
-            widthes[i] = max(widthes[i], displayWidth(line[i]));
+            widthes[i] = max(widthes[i], displayWidth(line[i], lineBreak));
         }
     }
     return widthes;
@@ -730,4 +897,15 @@ unittest
     assert(ruler.left() == "│");
     assert(ruler.right() == "│");
     assert(ruler.vertical() == "│");
+}
+
+private string chooseLineBreak(in Style style)
+{
+    with (Style) final switch (style)
+    {
+    case markdown:
+        return "<br>";
+    case simple, grid:
+        return "\n";
+    }
 }
